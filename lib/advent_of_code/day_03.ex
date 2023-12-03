@@ -3,6 +3,8 @@ defmodule AdventOfCode.Day03 do
   @spec parse_data() :: %{cols: non_neg_integer(), input: [binary()], lines: non_neg_integer()}
   def parse_data() do
     input = AdventOfCode.Input.get!(3, 2023)
+    |> String.split("\n", trim: true)
+
     # input = """
     # 467..114..
     # ...*......
@@ -14,23 +16,11 @@ defmodule AdventOfCode.Day03 do
     # ......755.
     # ...$.*....
     # .664.598..
-    # .........*
-    # ......9999
     # """
+    # |> String.split("\n", trim: true)
 
-    res = input
-    |> String.split("\n", trim: true)
-    # |> Enum.map(&(String.codepoints(&1)))
-
-    %{input: res, lines: Enum.count(res), cols: String.length(List.first(res))}
-  end
-
-  def part1(_args \\ []) do
-    %{
-      input: input,
-      lines: lines,
-      cols: cols
-    } = parse_data()
+    lines = Enum.count(input)
+    cols = String.length(List.first(input))
 
     all_numbers = input
     |> Enum.with_index()
@@ -52,6 +42,17 @@ defmodule AdventOfCode.Day03 do
       end)
       acc ++ Enum.map(res, fn m -> Map.put(m, :y, line_idx) end)
     end)
+
+    %{input: input, all_numbers: all_numbers, lines: lines, cols: cols}
+  end
+
+  def part1(_args \\ []) do
+    %{
+      all_numbers: all_numbers,
+      input: input,
+      lines: lines,
+      cols: cols
+    } = parse_data()
 
     all_numbers
     |> Enum.filter(fn n -> find_surrounding_symbol(n, input, lines, cols) end)
@@ -87,6 +88,44 @@ defmodule AdventOfCode.Day03 do
   def is_digit?(char), do: char >= "0" && char <= "9"
   def is_symbol?(char), do: not is_digit?(char) and char != "."
 
-  def part2(_args) do
+  def part2(_args \\ []) do
+    %{
+      all_numbers: all_numbers,
+      input: input,
+      lines: lines,
+      cols: cols
+    } = parse_data()
+
+
+    all_gears = input
+    |> Enum.with_index()
+    |> Enum.reduce([], fn {line, index_line}, gears ->
+      res = line
+      |> String.codepoints()
+      |> Enum.with_index()
+      |> Enum.filter(fn {char, index_char} ->
+        char == "*"
+      end)
+      |> Enum.map(fn {"*", x} ->
+        {x, index_line}
+      end)
+      gears ++ res
+    end)
+
+    replace_gears_with_adjacent_numbers(all_gears, all_numbers)
+    |> Enum.filter(&(Enum.count(&1) == 2))
+    |> Enum.map(fn [n1, n2] -> n1 * n2 end)
+    |> Enum.sum()
+  end
+
+  def replace_gears_with_adjacent_numbers(gears, numbers) do
+    gears
+    |> Enum.map(fn {gear_x, gear_y} ->
+
+      Enum.filter(numbers, fn n ->
+        abs(gear_y - n.y) <= 1 and (gear_x >= (n.x_begin - 1) and gear_x <= (n.x_end + 1))
+      end)
+      |> Enum.map(&(&1.num))
+    end)
   end
 end
