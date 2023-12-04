@@ -12,7 +12,6 @@ defmodule AdventOfCode.Day04 do
     """
 
     AdventOfCode.Input.get!(4, 2023)
-    # test_input
   end
 
   def parse_data() do
@@ -71,6 +70,39 @@ defmodule AdventOfCode.Day04 do
     |> Enum.sum()
   end
 
-  def part2(_args) do
+  def part2(_args \\ []) do
+    [res, _copies] = parse_data()
+    |> Enum.reduce([0, %{}], fn card, [total, earned_copies] ->
+      # %{id: card_id, winning_numbers: winning_numbers, numbers_you_have: numbers_you_have}
+
+      n_copies_earned = card.numbers_you_have
+      |> Enum.reduce(0, fn n, copy_earned ->
+        if n in card.winning_numbers, do: copy_earned + 1, else: copy_earned
+      end)
+
+      updated_earned_copies = if n_copies_earned > 0 do
+        Enum.reduce(1..n_copies_earned, earned_copies, fn x, copies ->
+          add_to_copies(copies, x + String.to_integer(card.id), number_of_current_copies(copies, String.to_integer(card.id)))
+        end)
+      else
+        earned_copies
+      end
+      [total + number_of_current_copies(updated_earned_copies, String.to_integer(card.id)), updated_earned_copies]
+    end)
+    res
+  end
+
+  def add_to_copies(copies, card_id, n) do
+    case Map.get(copies, card_id) do
+      nil -> Map.put(copies, card_id, n)
+      x -> Map.put(copies, card_id, x + n)
+    end
+  end
+
+  def number_of_current_copies(copies, card_id) do
+    case Map.get(copies, card_id) do
+      nil -> 1
+      x -> x + 1
+    end
   end
 end
