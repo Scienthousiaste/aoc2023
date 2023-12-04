@@ -92,8 +92,6 @@ defmodule AdventOfCode.Day03 do
     %{
       all_numbers: all_numbers,
       input: input,
-      lines: lines,
-      cols: cols
     } = parse_data()
 
 
@@ -103,7 +101,7 @@ defmodule AdventOfCode.Day03 do
       res = line
       |> String.codepoints()
       |> Enum.with_index()
-      |> Enum.filter(fn {char, index_char} ->
+      |> Enum.filter(fn {char, _index_char} ->
         char == "*"
       end)
       |> Enum.map(fn {"*", x} ->
