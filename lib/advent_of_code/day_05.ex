@@ -36,7 +36,7 @@ defmodule AdventOfCode.Day05 do
       60 56 37
       56 93 4
     """
-    AdventOfCode.Input.get!(5, 2023)
+    # AdventOfCode.Input.get!(5, 2023)
   end
 
   def parse() do
@@ -135,6 +135,79 @@ defmodule AdventOfCode.Day05 do
 
   end
 
-  def part2(_args \\ []) do
+  def compute_seed(maps, seed) do
+    Enum.reduce(maps, seed, fn map, n ->
+      Enum.reduce_while(map, n, fn range, nn ->
+        if nn >= range.start_range && nn <= range.end_range do
+          {:halt, nn + range.to_add}
+        else
+          {:cont, nn}
+        end
+      end)
+    end)
+  end
+
+  def part2_brute_force(_args \\ []) do
+    %{maps: maps, seeds: seed_ranges} = parse()
+
+    {sr, _, _} = seed_ranges
+    |> Enum.reduce({[], nil, true}, fn sr, {seeds, start, start?} ->
+      if start? do
+        {seeds, sr, false}
+      else
+        {seeds ++ [start..(start + sr - 1)], nil, true}
+      end
+    end)
+
+    result = sr
+    |> Enum.with_index
+    |> Enum.reduce(9999999999, fn {current_range, index}, min ->
+      res = current_range
+      |> Enum.reduce(min, fn seed, cur_min ->
+        case compute_seed(maps, seed) do
+          x when x < cur_min -> x
+          _ -> cur_min
+        end
+      end)
+      IO.inspect("end of range #{index}, #{res}")
+      res
+    end)
+    result
+  end
+
+  def part2(_args \\[]) do
+    %{maps: maps, seeds: seeds} = parse()
+
+    Enum.reduce(maps, make_seed_ranges(seeds), fn map, ranges ->
+
+      Enum.reduce(ranges, [], fn current_range, range_list ->
+
+        Enum.reduce(map, [current_range], fn map, ranges ->
+
+          map_range = map.start_range..map.end_range
+
+          require IEx; IEx.pry
+          cond do
+            Range.disjoint?(current_range, map_range)
+              -> ranges
+            true -> ranges
+          end
+
+        end)
+
+      end)
+    end)
+  end
+
+  def make_seed_ranges(seeds) do
+    {seed_ranges, _, _} = seeds
+    |> Enum.reduce({[], nil, true}, fn sr, {seeds, start, start?} ->
+      if start? do
+        {seeds, sr, false}
+      else
+        {seeds ++ [start..(start + sr - 1)], nil, true}
+      end
+    end)
+    seed_ranges
   end
 end
