@@ -1,4 +1,6 @@
 defmodule AdventOfCode.Day17 do
+  import Heap
+
   def input(test \\ false) do
     if test do
       """
@@ -31,7 +33,7 @@ defmodule AdventOfCode.Day17 do
   end
 
   def parse() do
-    input(true)
+    input()
     |> String.split("\n", trim: true)
     |> Enum.with_index(fn e, idx -> {idx, e} end)
     |> Enum.map(fn {i, e} ->
@@ -40,50 +42,48 @@ defmodule AdventOfCode.Day17 do
     |> Map.new()
   end
 
-  def extract_min_weight([h | tail], data) do
-    {h, tail, %{data | in_open_set: Map.delete(data.in_open_set, h.key)}}
+  def reconstruct_path(%{came_from: came_from, input: input, goal: goal}, current) do
+
+    {_p, s} = Enum.reduce_while(1..10000, {[], current, 0}, fn _x, {path, cur, sum_weight} ->
+
+      case Map.get(came_from, cur) do
+        nil ->
+        {:halt, {path, sum_weight}}
+        prev ->
+          [x, y, _] = String.split(prev, ",")
+          weight = weight_at({String.to_integer(x), String.to_integer(y)}, input)
+          {:cont, {[prev | path], prev, sum_weight + weight}}
+      end
+    end)
+    s + weight_at(goal, input) - weight_at({0, 0}, input)
+  end
+
+  def extract_min_weight(open_set, data) do
+    current = Heap.root(open_set)
+
+    {current, Heap.pop(open_set),
+     %{data | in_open_set: Map.delete(data.in_open_set, current.key)}}
   end
 
   def a_star(open_set, data) do
-    if Enum.count(open_set) == 0 do
-      require IEx; IEx.pry
+    if Heap.empty?(open_set) == 0 do
+      require IEx
+      IEx.pry()
     end
+
     {current, open_set, data} = extract_min_weight(open_set, data)
-
     if current.position == data.goal do
-      require IEx; IEx.pry
-      # Map.get(data.g_map, "12,12,right,down,down") donne bien 102...
-      # alors que Map.get(data.g_map, "12,12,down,down,down") donne 101, mais sensé
-      # pas être possible
-
-
-      # data.g_map(data.goal)
-
-      # require IEx
-      # IEx.pry()
-
-      # first try : i had only right of 2 times the same direction
-      # Took a while, and got 877, too high
-
-      # optimisations :
-      # - properly implement priority queue
-      # - not put directions in keys? Will it mean that I won't recheck as much?
-      # Maybe it won't matter at all?
-
-      # IO.inspect(current)
-      # no need to reconstruct path, I just want the weight
-      {next_open_set, next_data} = add_neighbours(open_set, current, data)
-      a_star(next_open_set, next_data)
+      reconstruct_path(data, current.key)
     else
       {next_open_set, next_data} = add_neighbours(open_set, current, data)
       a_star(next_open_set, next_data)
     end
   end
 
-  def opposite(:up), do: :down
-  def opposite(:down), do: :up
-  def opposite(:right), do: :left
-  def opposite(:left), do: :right
+  def opposite(:u), do: :d
+  def opposite(:d), do: :u
+  def opposite(:r), do: :l
+  def opposite(:l), do: :r
 
   def direction_possible?(current, dir, data) do
     prev = current.prev_directions
@@ -92,27 +92,23 @@ defmodule AdventOfCode.Day17 do
 
     cond do
       match?({^dir, ^dir, ^dir}, prev) -> false
-      match?({^opposite_dir, _}, prev) -> false
-      dir == :up and y - 1 < 0 -> false
-      dir == :down and y + 1 >= data.height -> false
-      dir == :left and x - 1 < 0 -> false
-      dir == :right and x + 1 >= data.width -> false
+      match?({^opposite_dir, _, _}, prev) -> false
+      dir == :u and y - 1 < 0 -> false
+      dir == :d and y + 1 >= data.height -> false
+      dir == :l and x - 1 < 0 -> false
+      dir == :r and x + 1 >= data.width -> false
       true -> true
     end
   end
 
-  def sort_priority_queue(set) do
-    Enum.sort_by(set, &(&1.f), :asc)
-  end
-
   def h({x_pos, y_pos}, {x_goal, y_goal}) do
-    (x_goal - x_pos + (y_goal - y_pos))
+    x_goal - x_pos + (y_goal - y_pos)
   end
 
-  def move({x, y}, :up), do: {x, y - 1}
-  def move({x, y}, :down), do: {x, y + 1}
-  def move({x, y}, :left), do: {x - 1, y}
-  def move({x, y}, :right), do: {x + 1, y}
+  def move({x, y}, :u), do: {x, y - 1}
+  def move({x, y}, :d), do: {x, y + 1}
+  def move({x, y}, :l), do: {x - 1, y}
+  def move({x, y}, :r), do: {x + 1, y}
 
   def add_to_open_set(open_set, new_elem) do
     [new_elem | open_set]
@@ -141,12 +137,13 @@ defmodule AdventOfCode.Day17 do
       d2 = %{
         data
         | g_map: Map.put(data.g_map, new_key, tentative_score),
-          f_map: Map.put(data.f_map, new_key, f_score)
+          f_map: Map.put(data.f_map, new_key, f_score),
+          came_from: Map.put(data.came_from, new_key, current.key)
       }
 
       if new_key not in data.in_open_set do
         {
-          add_to_open_set(open_set, neighbor),
+          Heap.push(open_set, neighbor),
           %{d2 | in_open_set: Map.put(d2.in_open_set, new_key, true)}
         }
       else
@@ -158,16 +155,13 @@ defmodule AdventOfCode.Day17 do
   end
 
   def add_neighbours(open_set, current, data) do
-    {unsorted, d} =
-      Enum.reduce([:up, :down, :right, :left], {open_set, data}, fn dir, {s, d} ->
-        if direction_possible?(current, dir, data) do
-          check_if_add_direction(s, current, dir, d)
-        else
-          {s, d}
-        end
-      end)
-
-    {sort_priority_queue(unsorted), d}
+    Enum.reduce([:u, :d, :r, :l], {open_set, data}, fn dir, {s, d} ->
+      if direction_possible?(current, dir, data) do
+        check_if_add_direction(s, current, dir, d)
+      else
+        {s, d}
+      end
+    end)
   end
 
   def weight_at({x, y}, input) do
@@ -176,11 +170,8 @@ defmodule AdventOfCode.Day17 do
   end
 
   def do_key({x, y}, {d1, d2, d3}) do
-    "#{x},#{y},#{d1},#{d2},#{d3}"
+    "#{x},#{y},#{d1}#{d2}#{d3}"
   end
-  # def do_key({x, y}, _x) do
-  #   "#{x},#{y}"
-  # end
 
   def part1(_args \\ []) do
     input = parse()
@@ -201,21 +192,19 @@ defmodule AdventOfCode.Day17 do
       input: input,
       g_map: Map.put(%{}, key, 0),
       f_map: Map.put(%{}, key, f_score),
-      f: f_score,
-      in_open_set: %{key: true}
+      in_open_set: %{key: true},
+      came_from: %{}
     }
 
-    a_star(
-      [
-        %{
-          position: start_position,
-          prev_directions: prev_dir_start,
-          key: key,
-          weight: weight_at(start_position, input)
-        }
-      ],
-      data
-    )
+    Heap.new(fn el1, el2 -> el1.f < el2.f end)
+    |> push(%{
+      position: start_position,
+      prev_directions: prev_dir_start,
+      key: key,
+      f: f_score,
+      weight: weight_at(start_position, input)
+    })
+    |> a_star(data)
   end
 
   def part2(_args \\ []) do
