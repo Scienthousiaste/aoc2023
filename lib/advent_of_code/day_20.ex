@@ -2,20 +2,20 @@ defmodule AdventOfCode.Day20 do
   def input(test \\ false) do
     if test do
 
-      """
-      broadcaster -> a, b, c
-      %a -> b
-      %b -> c
-      %c -> inv
-      &inv -> a
-      """
       # """
-      # broadcaster -> a
-      # %a -> inv, con
-      # &inv -> b
-      # %b -> con
-      # &con -> output
+      # broadcaster -> a, b, c
+      # %a -> b
+      # %b -> c
+      # %c -> inv
+      # &inv -> a
       # """
+      """
+      broadcaster -> a
+      %a -> inv, con
+      &inv -> b
+      %b -> con
+      &con -> output
+      """
     else
       {:ok, contents} = File.read("lib/advent_of_code/day_20_input.txt")
       contents
@@ -82,7 +82,7 @@ defmodule AdventOfCode.Day20 do
 
   def parse() do
     modules =
-      input(true)
+      input()
       |> String.split("\n", trim: true)
       |> Enum.map(&parse_module/1)
 
@@ -126,7 +126,7 @@ defmodule AdventOfCode.Day20 do
       Map.update(m, :state, nil, fn s -> Map.put(s, sender, pulse_type) end)
     end)
 
-    response = if Enum.all?(next_state[module.name].state, &(&1 == :high)) do
+    response = if Enum.all?(Map.values(next_state[module.name].state), &(&1 == :high)) do
       :low
     else
       :high
@@ -148,6 +148,8 @@ defmodule AdventOfCode.Day20 do
   end
 
   def process_pulse({hl, module, sender}, data) do
+
+    # IO.inspect("#{hl} pulse from #{sender} to #{module}")
     state = data.state
     next_m = Map.get(state, module)
 
@@ -157,7 +159,7 @@ defmodule AdventOfCode.Day20 do
   end
 
   def push_button(data) do
-    Enum.reduce_while(1..100_000, {data, [{:low, "button", nil}]}, fn _i, {state, pulses} ->
+    Enum.reduce_while(1..100_000, {data, [{:low, "broadcaster", "button"}]}, fn _i, {state, pulses} ->
       if pulses == [] do
         {:halt, state}
       else
@@ -182,8 +184,8 @@ defmodule AdventOfCode.Day20 do
         push_button(data)
       end)
 
-    require IEx
-    IEx.pry()
+    # require IEx
+    # IEx.pry()
     res.n_low * res.n_high
   end
 

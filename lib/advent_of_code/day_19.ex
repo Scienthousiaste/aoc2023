@@ -1,4 +1,8 @@
 defmodule AdventOfCode.Day19 do
+
+  @starting_ranges %{"x" => [1..4000], "m" => [1..4000], "a" => [1..4000], "s" => [1..4000]}
+
+  @spec input(any()) :: binary()
   def input(test \\ false) do
     if test do
       """
@@ -134,6 +138,92 @@ defmodule AdventOfCode.Day19 do
     |> Enum.sum()
   end
 
+  def regroup_by_letter(c) do
+    ["x", "m", "a", "s"]
+    |> Enum.reduce(%{}, fn letter, map ->
+      constraints_now = c
+      |> Enum.filter(fn {letter_c, _op, _val} -> letter_c == letter end)
+      Map.put(map, letter, constraints_now)
+    end)
+  end
+
+  def update_ranges(ranges, _constraints) do
+    # qqz{s>2770:qs,m<1801:hdj,R}
+
+    ranges
+  end
+
+  def compute_combinations(constraints, _ranges) do
+    cc = constraints
+    |> regroup_by_letter
+
+    # On reconmpte plein de fois la même chose je présume,
+    # il faut réussir à éliminer des range de possibilités sur le long terme
+    # Au début : 1..4000 possible pour chaque lettre, puis au fur et à mesure
+    # beaucoup moins
+    res = Enum.reduce(["x", "m", "a", "s"], 1, fn l, res ->
+        constraints = cc[l]
+        inf = Enum.filter([{l, "<", 4000} | constraints], fn {_, op, _} ->
+          op == "<"
+        end)
+        |> Enum.map(fn {_, _, v} -> v end)
+        |> Enum.min
+
+        sup = Enum.filter([{l, ">", 1} | constraints], fn {_, op, _} ->
+          op == ">"
+        end)
+        |> Enum.map(fn {_, _, v} -> v end)
+        |> Enum.max
+
+        s = Enum.max([0, inf - sup - 1])
+        IO.inspect("Letter #{l}, current res #{res}, #{inf}, #{sup} #{s}")
+        Enum.max([0, inf - sup - 1]) * res
+      end)
+
+    require IEx; IEx.pry
+    # |> Enum.reduce(start_combinations, fn {letter, op, val}, combinations ->
+      # {"a", ">", 3333},
+
+    res
+
+    # end)
+  end
+
+
   def part2(_args \\ []) do
+    {workflows, _parts} = parse()
+
+    rejection_constraints = propagate(workflows, workflows["in"], [])
+
+    rejection_constraints
+    |> List.flatten
+    |> Enum.reduce({0, [], @starting_ranges}, fn c, {sum, current_constraints, ranges} ->
+      case c do
+        :R -> {sum, [], update_ranges(ranges, current_constraints)}
+        :A -> {sum + compute_combinations(current_constraints, ranges), [], update_ranges(ranges, current_constraints)}
+        const -> {sum, [const | current_constraints], update_ranges(ranges, current_constraints)}
+      end
+    end)
+  end
+
+  def propagate(workflows, rules, constraints) do
+    Enum.map(rules, fn rule ->
+      case rule.type do
+        :go ->
+          case rule.goto do
+            "R" -> [:R | constraints] |> Enum.reverse
+            "A" -> [:A | constraints] |> Enum.reverse
+            w -> propagate(workflows, workflows[w], constraints)
+          end
+
+        :go_if ->
+          new_constraint = {rule.dim, rule.op, rule.val}
+          case rule.goto do
+            "R" -> [:R | [new_constraint | constraints]] |> Enum.reverse
+            "A" -> [:A | [new_constraint | constraints]] |> Enum.reverse
+            w -> propagate(workflows, workflows[w], [new_constraint | constraints])
+          end
+      end
+    end)
   end
 end
